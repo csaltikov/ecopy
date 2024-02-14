@@ -1,7 +1,9 @@
+import matplotlib.pyplot as plt
 import numpy as np
 from pandas import DataFrame, Series
-import matplotlib.pyplot as plt
+
 from .isoFunc import _isotonic_regression
+
 
 class isotonic:
     '''
@@ -72,7 +74,7 @@ class isotonic:
         self.predictor =  x
         y = y[o]
         w = w[o]
-        if direction is 'decreasing':
+        if direction == 'decreasing':
             y = y[::-1]    # flip y around and use the same algorithm
         self.prediction = _isotonic_regression(y, w, np.ones(len(y)))
         self.prediction = self.prediction[o2] # put into original order
