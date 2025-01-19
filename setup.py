@@ -5,6 +5,7 @@ import sys
 import pprint
 from setuptools import setup, find_packages
 from setuptools.extension import Extension
+from Cython.Build import cythonize
 
 # Set up the logging environment
 logging.basicConfig()
@@ -25,15 +26,6 @@ with open('ecopy/__init__.py') as f:
 
 with open('VERSION.txt', 'w') as f:
     f.write(version)
-
-# Use Cython if available
-try:
-    from Cython.Build import cythonize
-except:
-    log.critical(
-        'Cython.Build.cythonize not found. '
-        'Cython is required to build from a repo.')
-    sys.exit(1)
 
 # Use README.rst as the long description
 with open('README.rst') as f:

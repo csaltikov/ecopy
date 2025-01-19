@@ -13,3 +13,8 @@ dist
 
 # Miscellaneous
 *.swp
+.DS_Store
+ecopy/.idea/misc.xml
+ecopy/regression/isoFunc.c
+ecopy/regression/isoFunc.cpython-313-darwin.so
+ecopy/regression/isoFunc.c

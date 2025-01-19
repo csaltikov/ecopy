@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools", "wheel", "Cython", "numpy"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ecopy"
+dynamic = ["version"]
+description = "EcoPy: Ecological Data Analysis in Python"
+readme = "README.rst"
+authors = [
+    {name = "Nathan Lemoine", email = "lemoine.nathan@gmail.com"},
+]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 2.7",
+    "Programming Language :: Python :: 3.4",
+]
+keywords = ["ordination", "ecology", "multivariate data analysis"]
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "pandas",
+    "patsy"
+]
+
+[project.urls]
+Homepage = "https://github.com/csaltikov/ecopy"
+
+[tool.setuptools]
+packages = ["ecopy"]
+
+[tool.setuptools.dynamic]
+version = {attr = "ecopy.__version__"}
+
+[tool.cython]
+ext_modules = [
+    { path = "ecopy/regression/isoFunc.pyx", include_dirs = ["${NUMPY_INCLUDE}"] }
+]
+
+[tool.setuptools.package-data]
+ecopy = ["VERSION.txt"]
