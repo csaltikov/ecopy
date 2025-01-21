@@ -107,7 +107,7 @@ class pcoa(object):
             if correction not in ['1', '2']:
                 msg = "correction must be either '1' or '2'"
                 raise ValueError(msg)
-        if correction is '1':
+        if correction == '1':
             negEvl = np.abs(np.min(self.evals[self.evals < 0]))
             A = -0.5*np.square(y) - negEvl
             np.fill_diagonal(A, 0)
@@ -116,7 +116,7 @@ class pcoa(object):
             idx = self.evals.argsort()[::-1]
             self.U = self.U[:,idx]
             self.correction = negEvl
-        if correction is '2':
+        if correction == '2':
             mat0 = np.zeros((n,n))
             matI = -1.*np.eye(n)
             d1 = 2.*D

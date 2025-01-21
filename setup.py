@@ -53,11 +53,12 @@ ext_modules = cythonize([
 
 # Dependencies
 install_requires = [
-    'numpy>=1.7',
-    'scipy>=0.14',
-    'matplotlib>=1.3.1',
-    'pandas>=0.13',
-    'patsy>=0.3.0'
+    'cython',
+    'numpy',
+    'scipy',
+    'matplotlib',
+    'pandas',
+    'patsy'
 ]
 
 setup_args = dict(
@@ -65,9 +66,16 @@ setup_args = dict(
     version=version,
     description='EcoPy: Ecological Data Analysis in Python',
     long_description=readme,
+    # Original author's information
     url='https://github.com/Auerilas/ecopy',
     author='Nathan Lemoine',
     author_email='lemoine.nathan@gmail.com',
+    project_urls={
+        "Original Repository": "https://github.com/Auerilas/ecopy",
+        "Forked Repository": "https://github.com/csaltikov/ecopy",
+    },
+    maintainers="Chad Saltikov",
+    maintainer_email="saltikov@ucsc.edu",
     license='MIT',
     classifiers=[
         'Development Status :: 3 - Alpha',

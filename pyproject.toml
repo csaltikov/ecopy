@@ -10,6 +10,9 @@ readme = "README.rst"
 authors = [
     {name = "Nathan Lemoine", email = "lemoine.nathan@gmail.com"},
 ]
+maintainers = [
+    {name = "Chad Saltikov", email = "saltikov@ucsc.edu"},
+]
 license = {text = "MIT"}
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -20,6 +23,7 @@ classifiers = [
 ]
 keywords = ["ordination", "ecology", "multivariate data analysis"]
 dependencies = [
+    "cython",
     "numpy",
     "scipy",
     "matplotlib",
@@ -28,7 +32,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/csaltikov/ecopy"
+Homepage = 'https://github.com/Auerilas/ecopy'
+Repository = "https://github.com/csaltikov/ecopy"
 
 [tool.setuptools]
 packages = ["ecopy"]

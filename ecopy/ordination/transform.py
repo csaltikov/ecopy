@@ -1,6 +1,7 @@
 import numpy as np
 from pandas import DataFrame 
 
+
 def transform(x, method='wisconsin', axis=1, breakNA=True):
     '''
     Docstring for function ecopy.distance
@@ -52,7 +53,7 @@ def transform(x, method='wisconsin', axis=1, breakNA=True):
     if axis not in [0, 1]:
         msg = 'Axis argument must be either 0 or 1'
         raise ValueError(msg)
-    if method not in ['total', 'max', 'normalize', 'range', 'standardize', 'hellinger', 'log', 'logp1', 'pa', 'wisconsin']:
+    if method not in ['total', 'max', 'normalize', 'range', 'standardize', 'hellinger', 'log', 'logp1', 'pa', 'wisconsin', 'log_median_ratio']:
         msg = '{0} not an accepted method'.format(method)
         raise ValueError(msg)
     if isinstance(x, DataFrame):
@@ -101,6 +102,8 @@ def transform(x, method='wisconsin', axis=1, breakNA=True):
             data = z.apply(maxTrans, axis=0)
             data = data.apply(totalTrans, axis=1)
             return data
+        if method=="log_median_ratio":
+            return log_median_ratio(z+1, axis=axis)
     if isinstance(x, np.ndarray):
         if breakNA:
             if np.isnan(np.sum(x)):
@@ -144,23 +147,43 @@ def transform(x, method='wisconsin', axis=1, breakNA=True):
             data = z.astype('float')
             data[np.greater(data,0)] = np.log(data[np.greater(data,0)]) + 1
             return data
-        if method=='wisconsin':
+        if method == 'wisconsin':
             data = np.apply_along_axis(maxTrans, 0, z)
             data = np.apply_along_axis(totalTrans, 1, z)
             return data
+        if method == "log_median_ratio":
+            return log_median_ratio(z+1, axis=axis)
+
 
 def totalTrans(y):
     return y/np.nansum(y)
 
+
 def maxTrans(y):
     return y/np.nanmax(y)
+
 
 def normTrans(y):
     denom = np.sqrt(np.nansum(y**2))
     return y/denom
 
+
 def rangeTrans(y):
     return (y - np.nanmin(y))/(np.nanmax(y) - np.nanmin(y))
 
+
 def standTrans(y):
     return (y - np.nanmean(y))/np.nanstd(y, ddof=1)
+
+
+def log_median_ratio(y, axis):
+    log_counts = np.log(y)
+    if isinstance(y, DataFrame):
+        log_means = log_counts.mean(axis=axis)
+        log_ratios = log_counts.subtract(log_means, axis=1-axis)
+    else:
+        log_means = np.mean(log_counts, axis=axis, keepdims=True)
+        log_ratios = log_counts - log_means
+    size_factors = np.exp(np.median(log_ratios, axis=1-axis))
+    norm_counts = y / size_factors[:, np.newaxis] if axis == 0 else y / size_factors
+    return norm_counts

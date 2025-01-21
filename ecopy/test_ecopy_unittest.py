@@ -28,7 +28,7 @@ class TestECOPY(unittest.TestCase):
 
     def test_diversity(self):
         sp = np.array([0, 1, 2, 3, 0]).reshape(1,5)
-        div = np.round(diversity(sp))
+        div = np.round(diversity(sp, num_equiv=False))
         self.assertEqual(div, 1)
 
     def test_rarefy(self):
