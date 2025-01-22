@@ -89,11 +89,11 @@ class corner4(object):
                         iteration += 1
                     obsStat.append(stat_obs)
                     statType.append('Pearson r')
-                    if test is 'greater':
+                    if test == 'greater':
                         pval.append(np.mean(stat_perm >= stat_obs))
-                    if test is 'lower':
+                    if test == 'lower':
                         pval.append(np.mean(stat_perm <= stat_obs))
-                    if test is 'both':
+                    if test == 'both':
                         pval.append(np.mean(np.abs(stat_perm)>=np.abs(stat_obs)))
                 if R.iloc[:,i].dtype=='object' and Q.iloc[:,j].dtype=='object':
                     R2 = factorize(R.iloc[:,i])[0]
@@ -108,11 +108,11 @@ class corner4(object):
                         iteration += 1
                     obsStat.append(stat_obs)
                     statType.append('Chi-Squared')
-                    if test is 'greater':
+                    if test == 'greater':
                         pval.append(np.mean(stat_perm >= stat_obs))
-                    if test is 'lower':
+                    if test == 'lower':
                         pval.append(np.mean(stat_perm <= stat_obs))
-                    if test is 'both':
+                    if test == 'both':
                         pval.append(np.mean(np.abs(stat_perm)>=np.abs(stat_obs)))
                 if R.iloc[:,i].dtype=='object' and Q.iloc[:,j].dtype=='float':
                     stat_obs = QualQuant(R.iloc[:,i], L, Q.iloc[:,j])
@@ -123,11 +123,11 @@ class corner4(object):
                         iteration += 1
                     obsStat.append(stat_obs)
                     statType.append('F')
-                    if test is 'greater':
+                    if test == 'greater':
                         pval.append(np.mean(stat_perm >= stat_obs))
-                    if test is 'lower':
+                    if test == 'lower':
                         pval.append(np.mean(stat_perm <= stat_obs))
-                    if test is 'both':
+                    if test == 'both':
                         pval.append(np.mean(np.abs(stat_perm)>=np.abs(stat_obs)))
                 if R.iloc[:,i].dtype=='float' and Q.iloc[:,j].dtype=='object':
                     stat_obs = QuantQual(R.iloc[:,i], L, Q.iloc[:,j])
@@ -138,11 +138,11 @@ class corner4(object):
                         iteration += 1
                     obsStat.append(stat_obs)
                     statType.append('F-statistic')
-                    if test is 'greater':
+                    if test == 'greater':
                         pval.append(np.mean(stat_perm >= stat_obs))
-                    if test is 'lower':
+                    if test == 'lower':
                         pval.append(np.mean(stat_perm <= stat_obs))
-                    if test is 'both':
+                    if test == 'both':
                         pval.append(np.mean(np.abs(stat_perm)>=np.abs(stat_obs)))
         self.results = DataFrame({'Comparison': compName, 'Statistic': statType, 'Observed Stat': np.round(obsStat, 2), 'p-value': np.round(pval, 3)})
         self.results['tail'] = test

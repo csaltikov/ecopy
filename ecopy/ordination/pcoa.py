@@ -198,8 +198,8 @@ class pcoa(object):
     def shepard(self, xax=1, yax=2):
         coords = self.U[:,[xax-1, yax-1]]
         reducedD = np.zeros((coords.shape[0], coords.shape[0]))
-        for i in xrange(coords.shape[0]):
-            for j in xrange(coords.shape[0]):
+        for i in range(coords.shape[0]):
+            for j in range(coords.shape[0]):
                 d = coords[i,:] - coords[j,:]
                 reducedD[i, j] = np.sqrt( d.dot(d) )
         reducedD = reducedD[np.tril_indices_from(reducedD, k=-1)]

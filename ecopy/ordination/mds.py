@@ -134,7 +134,7 @@ class MDS(object):
                     stressStore = stress2
                     coordStore = Z
                 self.parameters = None
-        if transform is 'ratio':
+        if transform == 'ratio':
             bStore = None
             Vp = VTrans(weights)
             for i in range(ntry):
@@ -158,7 +158,7 @@ class MDS(object):
                     coordStore = Z
                     bStore = b
                 self.parameters = {'b': bStore}
-        if transform is 'linear':
+        if transform == 'linear':
             aStore = None
             bStore = None
             for i in range(ntry):
@@ -184,7 +184,7 @@ class MDS(object):
                     aStore = a
                     bStore = b
                 self.parameters = {'a': aStore, 'b': bStore}
-        if transform is 'monotone':
+        if transform == 'monotone':
             Vp = VTrans(weights)
             for i in range(ntry):
                 if i ==0:
