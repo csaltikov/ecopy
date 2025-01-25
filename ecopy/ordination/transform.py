@@ -177,6 +177,28 @@ def standTrans(y):
 
 
 def log_median_ratio(y, axis):
+    """
+    Normalize count data using DESeq2's log median ratio method.
+
+    This function normalizes counts to sample-specific size factors using the log median ratio method.
+    It can handle both numpy arrays and pandas DataFrames, and can work with data in either
+    'wide' (samples as columns) or 'long' (samples as rows) format.
+
+    Parameters:
+    y (numpy.ndarray or pandas.DataFrame): The count data to be normalized.
+    axis (int): Specifies the axis representing samples.
+                Use 0 if samples are rows, 1 if samples are columns.
+
+    Returns:
+    numpy.ndarray or pandas.DataFrame: Normalized count data with the same shape as the input.
+
+    Usage:
+    # For data where samples are rows (axis=0):
+    normalized_counts = log_median_ratio(counts_matrix, axis=0)
+
+    # For data where samples are columns (axis=1):
+    normalized_counts = log_median_ratio(counts_matrix, axis=1)
+    """
     log_counts = np.log(y)
     if isinstance(y, DataFrame):
         log_means = log_counts.mean(axis=axis)
