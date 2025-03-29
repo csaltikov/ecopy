@@ -3,22 +3,12 @@ VERSION.txt
 
 # Build and distribution directories and files
 build
+*__pycache__*
 dist
 *.c
+*.so
 *.egg-info
-*.py[c|d|o]
-
-# Git stuff
-.gitignore
-
-# Miscellaneous
 *.swp
 .DS_Store
-.idea/
-ecopy/.idea/misc.xml
-ecopy/regression/isoFunc.c
-ecopy/regression/isoFunc.cpython-313-darwin.so
-ecopy/regression/isoFunc.c
-/ecopy/.idea
-ecopy/regression/isoFunc.cpython-310-darwin.so
-/local_scripts/
+*.idea*
+local_scripts

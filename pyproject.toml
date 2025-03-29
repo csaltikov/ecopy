@@ -36,15 +36,17 @@ Homepage = 'https://github.com/Auerilas/ecopy'
 Repository = "https://github.com/csaltikov/ecopy"
 
 [tool.setuptools]
-packages = ["ecopy"]
+include-package-data = true
 
 [tool.setuptools.dynamic]
 version = {attr = "ecopy.__version__"}
 
 [tool.cython]
+language_level = "3"
 ext_modules = [
     { path = "ecopy/regression/isoFunc.pyx", include_dirs = ["${NUMPY_INCLUDE}"] }
 ]
 
 [tool.setuptools.package-data]
 ecopy = ["VERSION.txt"]
+"*" = ["*.pyx", "*.pxd"]

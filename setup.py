@@ -3,8 +3,8 @@
 import logging
 import sys
 import pprint
-from setuptools import setup, find_packages
-from setuptools.extension import Extension
+from setuptools import setup, find_packages, Extension
+# from setuptools.extension import Extension
 from Cython.Build import cythonize
 
 # Set up the logging environment
@@ -48,7 +48,8 @@ log.debug('opts:\n%s', pprint.pformat(opts))
 # Build extension modules 
 ext_modules = cythonize([
     Extension(
-        'ecopy.regression.isoFunc', ['ecopy/regression/isoFunc.pyx'], **opts),
+        'ecopy.regression.isoFunc',
+        ['ecopy/regression/isoFunc.pyx'], **opts),
 ])
 
 # Dependencies
@@ -74,7 +75,7 @@ setup_args = dict(
         "Original Repository": "https://github.com/Auerilas/ecopy",
         "Forked Repository": "https://github.com/csaltikov/ecopy",
     },
-    maintainers="Chad Saltikov",
+    maintainer="Chad Saltikov",
     maintainer_email="saltikov@ucsc.edu",
     license='MIT',
     classifiers=[
@@ -87,7 +88,7 @@ setup_args = dict(
     keywords=['ordination', 'ecology', 'multivariate data analysis'],
     ext_modules=ext_modules,
     install_requires=install_requires,
-    packages=find_packages(),
+    packages=find_packages(where="ecopy"),
     setup_requires=['cython'],  # Add this line
 )
 
