@@ -88,7 +88,7 @@ setup_args = dict(
     keywords=['ordination', 'ecology', 'multivariate data analysis'],
     ext_modules=ext_modules,
     install_requires=install_requires,
-    packages=find_packages(where="ecopy"),
+    packages=find_packages(),
     setup_requires=['cython'],  # Add this line
 )
 
