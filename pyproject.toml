@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools", "wheel", "Cython", "numpy"]
+requires = ["setuptools", "wheel", "Cython", "numpy", "matplotlib", "scipy", "pandas"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ecopy"
-dynamic = ["version"]
+version = "0.1.3.0"
 description = "EcoPy: Ecological Data Analysis in Python"
 readme = "README.rst"
 authors = [
@@ -37,6 +37,7 @@ keywords = [
     "microbial ecology",
     "metagenomics",
 ]
+
 dependencies = [
     "cython",
     "numpy",
@@ -61,15 +62,17 @@ Repository = "https://github.com/csaltikov/ecopy"
 [tool.setuptools]
 include-package-data = true
 
-[tool.setuptools.dynamic]
-version = {attr = "ecopy.__version__"}
-
 [tool.setuptools.package-data]
 ecopy = [
     "VERSION.txt",
     "ordination/cap.py"
 ]
 "*" = ["*.pyx", "*.pxd"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ecopy*"]
+exclude = ["local_scripts*", "tests*"]
 
 [tool.cython]
 language_level = "3"

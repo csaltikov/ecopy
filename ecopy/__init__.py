@@ -1,5 +1,8 @@
-__version__ = '0.1.2.3'
-
+from importlib.metadata import version, PackageNotFoundError
+try:
+    __version__ = version("ecopy")
+except PackageNotFoundError:
+    __version__ = "unknown"
 
 from .regression import *
 from .ordination import *
