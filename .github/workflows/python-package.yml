@@ -44,12 +44,12 @@ jobs:
         # Treat all other errors as warnings
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
-    - name: Test with pytest
-      run: |
-        pytest ecopy/tests/ -v
-
     - name: Debug imports
       run: |
         python -c "from ecopy import utils; print(dir(utils))"
         python -c "from ecopy.utils import load_data; print('load_data ok')"
         python -c "import ecopy; print([x for x in dir(ecopy) if not x.startswith('_')])"
+
+    - name: Test with pytest
+      run: |
+        pytest ecopy/tests/ -v
