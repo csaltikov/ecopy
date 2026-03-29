@@ -47,3 +47,8 @@ jobs:
     - name: Test with pytest
       run: |
         pytest ecopy/tests/test_cap.py -v
+
+    - name: Debug imports
+      run: |
+        python -c "from ecopy.diversity import rarefy" 2>&1 || true
+        python -c "import ecopy; print('load_data' in dir(ecopy))"
