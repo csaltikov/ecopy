@@ -50,5 +50,6 @@ jobs:
 
     - name: Debug imports
       run: |
-        python -c "from ecopy.diversity import rarefy" 2>&1 || true
-        python -c "import ecopy; print('load_data' in dir(ecopy))"
+        python -c "from ecopy import utils; print(dir(utils))"
+        python -c "from ecopy.utils import load_data; print('load_data ok')"
+        python -c "import ecopy; print([x for x in dir(ecopy) if not x.startswith('_')])"

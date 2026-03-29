@@ -9,4 +9,4 @@ from .ordination import *
 from .diversity import *
 from .matrix_comp import *
 from .base_funcs import *
-from .utils import *
+from .utils import load_data
