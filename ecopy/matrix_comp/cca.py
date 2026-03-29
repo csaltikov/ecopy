@@ -1,7 +1,7 @@
 import numpy as np
 from pandas import DataFrame, get_dummies
 import matplotlib.pyplot as plt
-from ecopy import ca
+from ecopy.ordination.correspondance import ca
 
 class cca(object):
     """

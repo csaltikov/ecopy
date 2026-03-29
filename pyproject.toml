@@ -18,22 +18,45 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 2.7",
-    "Programming Language :: Python :: 3.4",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Information Analysis",
 ]
-keywords = ["ordination", "ecology", "multivariate data analysis"]
+keywords = [
+    "ordination",
+    "ecology",
+    "multivariate data analysis",
+    "canonical analysis",
+    "distance-based redundancy analysis",
+    "dbRDA",
+    "CAP",
+    "microbial ecology",
+    "metagenomics",
+]
 dependencies = [
     "cython",
     "numpy",
     "scipy",
     "matplotlib",
     "pandas",
-    "patsy"
+    "patsy",
+]
+requires-python = ">=3.9"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
 ]
 
 [project.urls]
 Homepage = 'https://github.com/Auerilas/ecopy'
 Repository = "https://github.com/csaltikov/ecopy"
+"Bug Tracker" = "https://github.com/csaltikov/ecopy/issues"
 
 [tool.setuptools]
 include-package-data = true
@@ -41,12 +64,21 @@ include-package-data = true
 [tool.setuptools.dynamic]
 version = {attr = "ecopy.__version__"}
 
+[tool.setuptools.package-data]
+ecopy = [
+    "VERSION.txt",
+    "ordination/cap.py"
+]
+"*" = ["*.pyx", "*.pxd"]
+
 [tool.cython]
 language_level = "3"
 ext_modules = [
     { path = "ecopy/regression/isoFunc.pyx", include_dirs = ["${NUMPY_INCLUDE}"] }
 ]
 
-[tool.setuptools.package-data]
-ecopy = ["VERSION.txt"]
-"*" = ["*.pyx", "*.pxd"]
+[tool.pytest.ini_options]
+testpaths = ["ecopy/tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

@@ -6,3 +6,4 @@ from .transform import transform
 from .mds import MDS
 from .hillsmith import hillsmith
 from .ord_plot import ord_plot
+from .cap import cap
