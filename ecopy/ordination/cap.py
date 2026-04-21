@@ -507,8 +507,9 @@ class cap(object):
             fontsize=10)
         ax.grid(True, alpha=0.2)
         plt.tight_layout()
-        if kwargs["f_name"]:
-            plt.savefig(kwargs.get("f_name"), dpi=300, bbox_inches='tight')
+        f_name = kwargs.get("f_name", None)
+        if f_name:
+            plt.savefig(f_name, dpi=300, bbox_inches='tight')
         plt.show()
 
     # ------------------------------------------------------------------
