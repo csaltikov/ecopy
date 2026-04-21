@@ -9,9 +9,9 @@ on multivariate data analysis, which can be useful in any field, but with
 particular attention to those methods widely used in ecology.
 `The homepage, with full documentation and examples, can be found here <http://ecopy.readthedocs.io>`_
 
-Install via ``pip install ecopy`` or with uv::
+Install via ``pip install ecopy2`` or with uv::
 
-    uv pip install ecopy
+    uv pip install ecopy2
 
 For development installation (editable mode)::
 
@@ -25,6 +25,17 @@ What's New
 
 0.1.3.0
 -------
+- Added ``asca()`` — ANOVA-Simultaneous Component Analysis (ASCA),
+  following Smilde et al. (2005) *Bioinformatics* 21:3043–3048.
+
+  - Type I (sequential) and Type III (marginal) sums of squares decomposition
+  - Type III SS is order-independent, appropriate for unbalanced designs
+  - PCA on each effect matrix with score, loading, and biplot methods
+  - Multiprocessing permutation testing with per-term label shuffling
+  - DNA helix CLI spinner for progress feedback
+  - Validated against Bertinetto, Engel & Jansen (2020)
+    *Analytica Chimica Acta: X* 6:100061 example dataset
+
 - Added ``cap()`` — Canonical Analysis of Principal Coordinates (CAP),
   also known as distance-based Redundancy Analysis (dbRDA), following
   McArdle & Anderson (2001) *Ecology* 82:290–297.
@@ -33,11 +44,17 @@ What's New
   - Supports continuous, categorical, and mixed environmental variables
   - Permutation F-test (default 999 permutations) for model significance
   - Biplot with centroids and spider legs for replicated designs
-  - Validated against ``vegan::capscale()`` in R
+  - Validated against ``vegan::capscale()`` in R to 4 decimal places
 
+- Fixed ``simper()``: replaced deprecated ``DataFrame.append()`` with
+  ``pd.concat()``, ``normed=`` with ``density=``, ``.ix[]`` with ``.loc[]``
+- Fixed ``anosim()``: replaced structured numpy array with pandas DataFrame,
+  precomputed masks for performance improvement
 - Fixed circular import in ``matrix_comp/cca.py``
 - Updated Python classifiers: 3.9 – 3.13
 - Dropped Python 2.7 and 3.4 support
+- Modernized build: ``pyproject.toml``, ``importlib.metadata`` versioning,
+  GitHub Actions CI
 
 0.1.2.3
 -------
@@ -118,15 +135,51 @@ Canonical Analysis of Principal Coordinates (CAP / dbRDA)::
     result.anova()
     result.biplot(color_by=env['Depth'].values)
 
+ANOVA-Simultaneous Component Analysis (ASCA)::
+
+    import ecopy as ep
+    import numpy as np
+    import pandas as pd
+    from itertools import product
+
+    # Balanced two-factor design: depth x year, 2 replicates
+    factors = pd.DataFrame({
+        'depth': ['shallow'] * 6 + ['deep'] * 6,
+        'year':  ['2014', '2014', '2014', '2015', '2015', '2015'] * 2,
+    })
+
+    np.random.seed(42)
+    n = len(factors)
+    X = np.zeros((n, 10))
+    X[:, 0] = np.where(factors['depth'] == 'shallow', 8, 2)  # depth signal
+    X[:, 1] = np.where(factors['depth'] == 'shallow', 6, 3)  # depth signal
+    X[:, 2] = np.where(factors['year'] == '2014', 7, 3)       # year signal
+    X += np.random.normal(0, 0.5, X.shape)
+
+    # Fit ASCA model — Type III SS for unbalanced designs
+    result = ep.asca(X, factors, decomp_type=3, nperm=999)
+    result.summary()
+
+    # Score plot for depth effect
+    result.plot('depth', kind='scores')
+
+    # Biplot with species loadings
+    var_names = np.array(['Sp1', 'Sp2', 'Sp3', 'Sp4', 'Sp5',
+                          'Sp6', 'Sp7', 'Sp8', 'Sp9', 'Sp10'])
+    result.plot('depth', kind='biplot', var_names=var_names)
+
+    # Loading bar chart
+    result.plot('depth', kind='loading', var_names=var_names, n_load=10)
+
 Full online documentation is a work in progress.
 
 
 AI Assistance Disclosure
 ========================
-The ``cap()`` implementation was developed with AI assistance (Claude, Anthropic).
-The mathematical framework follows McArdle & Anderson (2001) and Legendre &
-Anderson (1999). Results were independently validated against ``vegan::capscale()``
-in R by the maintainer.
+The ``cap()`` and ``asca()`` implementations were developed with AI assistance
+(Claude, Anthropic). The mathematical frameworks follow the references listed
+below. Results were independently validated against R reference implementations
+by the maintainer.
 
 References:
 
@@ -135,36 +188,43 @@ References:
 - Legendre P, Anderson MJ (1999) Distance-based redundancy analysis: testing
   multispecies responses in multifactorial ecological experiments.
   *Ecological Monographs* 69:1–24.
+- Smilde AK, Jansen JJ, Hoefsloot HCJ, Lamers RJAN, van der Greef J,
+  Timmerman ME (2005) ANOVA-simultaneous component analysis (ASCA): a new
+  tool for analyzing designed metabolomics data. *Bioinformatics* 21:3043–3048.
+- Bertinetto C, Engel J, Jansen J (2020) ANOVA simultaneous component
+  analysis: a tutorial review. *Analytica Chimica Acta: X* 6:100061.
+- Thiel M, Féraud B, Govaerts B (2017) ASCA+ and APCA+: extensions of ASCA
+  and APCA in the analysis of unbalanced multifactorial studies.
+  *Chemometrics and Intelligent Laboratory Systems* 171:33–41.
 
 
 TO-DO
 =====
 
-Incorporate DECORANA and TWINSPAN into EcoPy
---------------------------------------------
+ASCA
+----
 
-1. Modified ``write_cep`` to handle integer row names (common in pandas DataFrames)
-2. Pre-processing code works for DECORANA
-3. **Need to get decorana Fortran function working on UNIX systems (.exe binary only works for Windows)**
+1. ASCA+ full implementation for unbalanced designs (Thiel et al. 2017)
+2. Projected residuals on score plots (Bertinetto et al. 2020 Fig. 2)
+3. Confidence ellipses on score plots
 
-   - This is going to be difficult because converting the decorana function to Python
-     pulls in the numerical subroutines. There is, as yet, no way to simply pass the
-     data file to a terminal command like used in CornPy. The Fortran subroutines
-     would need to be rewritten, as ``vegan`` does.
+CAP
+---
 
-4. **Need to get TWINSPAN functional**
+1. Axis-by-axis permutation tests
+2. Partial CAP (conditioning variables)
 
-Procrustes Rotation
--------------------
+General
+-------
 
-Linear/surface environmental fitting
--------------------------------------
+- Incorporate DECORANA and TWINSPAN into EcoPy
 
-Axis-by-axis permutation tests for CAP
----------------------------------------
+  1. Modified ``write_cep`` to handle integer row names
+  2. Pre-processing code works for DECORANA
+  3. **Need to get decorana Fortran function working on UNIX systems**
+  4. **Need to get TWINSPAN functional**
 
-MaxEnt Wrapper
---------------
-
-Clustering
-----------
+- Procrustes Rotation
+- Linear/surface environmental fitting
+- MaxEnt Wrapper
+- Clustering

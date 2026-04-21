@@ -1,5 +1,8 @@
+from cmath import inf
+
 import numpy as np
-from pandas import DataFrame
+import pandas as pd
+
 
 def simper(data, factor, spNames=None):
     '''
@@ -31,12 +34,12 @@ def simper(data, factor, spNames=None):
     data2 = ep.load_data('dune_env')
     group1 = data2['Management']
     fd = ep.simper(np.array(data1), group1, spNames=data1.columns)
-    print(fd.ix['BF-NM'])
+    print(fd.loc['BF-NM'])
     '''
-    if not isinstance(data, (DataFrame, np.ndarray)):
+    if not isinstance(data, (pd.DataFrame, np.ndarray)):
         msg = 'datamust be either numpy array or dataframe'
         raise ValueError(msg)
-    if isinstance(data, DataFrame):
+    if isinstance(data, pd.DataFrame):
         if (data.dtypes == 'object').any():
             msg = 'DataFrame can only contain numeric values'
             raise ValueError(msg)
@@ -80,9 +83,11 @@ def simper(data, factor, spNames=None):
                         k += 1
             spMeans =np.round(deltaI.mean(axis=0), 2)
             spSds = np.round(deltaI.std(axis=0, ddof=1), 2)
-            spRat = np.round(spMeans/spSds, 2)
+            with np.errstate(divide='ignore', invalid='ignore'):
+                spRat = np.round(spMeans / spSds, 2)
+            spRat = np.where(np.isfinite(spRat), spRat, 0.0)
             spPct = np.round(spMeans/spMeans.sum()*100, 2)
-            tempDF = DataFrame({'sp_mean': spMeans,
+            tempDF = pd.DataFrame({'sp_mean': spMeans,
                         'sp_sd': spSds,
                         'ratio': spRat,
                         'sp_pct': spPct}, 
@@ -93,7 +98,7 @@ def simper(data, factor, spNames=None):
             if i==0 and j==i+1:
                 finalDF = tempDF
             else:
-                finalDF = finalDF.append(tempDF)
+                finalDF = pd.concat([finalDF, tempDF])
             print(comp)
             j += 1
         i += 1
