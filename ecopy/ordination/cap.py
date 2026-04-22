@@ -163,7 +163,8 @@ class cap(object):
         figsize: Figure size tuple.
         kwargs:
             f_name: string or path to save the biplot
-
+        return:
+            fig, ax
 
     Example
     -------
@@ -187,7 +188,7 @@ class cap(object):
     result = ep.cap(D, env)
     print(result.summary())
     result.anova()
-    result.biplot()
+    fig, ax = result.biplot()
 
     References
     ----------
@@ -439,6 +440,14 @@ class cap(object):
             tuple, figure size (default (7, 6)).
         kwargs: str|Path
             f_name: this is string/path for saving the biplot
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The figure object.
+        ax : matplotlib.axes.Axes
+            The axes object. Use these to further customize the plot
+            before calling plt.show() or fig.savefig().
         """
         xi = xax - 1
 
@@ -559,7 +568,7 @@ class cap(object):
         f_name = kwargs.get("f_name", None)
         if f_name:
             plt.savefig(f_name, dpi=300, bbox_inches='tight')
-        plt.show()
+        return fig, ax
 
     # ------------------------------------------------------------------
     def _permtest(self, nperm, seed):
