@@ -6,6 +6,7 @@ from warnings import warn
 from collections import defaultdict
 
 from numpy import ndarray
+from sklearn.linear_model import LinearRegression
 
 
 class cap(object):
@@ -35,8 +36,8 @@ class cap(object):
 
     Use
     ----
-    cap(D, X, scale_x=True, varNames_x=None, siteNames=None,
-        pTypes=None, nperm=999, seed=42)
+    cap(D, X, condition=None, scale_x=True, varNames_x=None,
+        siteNames=None, pTypes=None, nperm=999, seed=42)
 
     Returns an object of class cap
 
@@ -52,6 +53,16 @@ class cap(object):
         (quantitative) or categorical (factor) variables. Categorical
         columns should be object/string dtype in a DataFrame and will
         be automatically dummy-coded.
+    condition:
+        Optional pandas.DataFrame of conditioning (nuisance) variables
+        to partial out before the constrained analysis. These variables
+        are removed from the PCoA coordinates via linear regression
+        before CAP is applied to X. Equivalent to vegan's Condition()
+        argument in capscale(). Typical use: condition=metadata[['block']]
+        in a randomized block design to remove block effects before
+        testing treatment. Numeric and categorical columns are both
+        supported; categorical columns are dummy-coded automatically.
+        Conditioning variables are never scaled.
     scale_x:
         Whether to standardize continuous columns of X to zero
         mean and unit variance before analysis (True, recommended).
@@ -72,6 +83,9 @@ class cap(object):
 
     Attributes
     ----------
+    condition_vars:
+        List of conditioning variable names that were partialled out,
+        or None if no condition was supplied.
     capScores:
         Site scores on constrained CAP axes (DataFrame,
         sites x CAP axes). These are your primary ordination
@@ -187,7 +201,7 @@ class cap(object):
         matrices: estimation and comparison of fractions. Ecology 87:2614-2625.
     """
 
-    def __init__(self, D, X, scale_x=True, varNames_x=None,
+    def __init__(self, D, X, condition=None, scale_x=True, varNames_x=None,
                  siteNames=None, pTypes=None, nperm=999, seed=42):
 
         # ---- Input validation ----
@@ -243,21 +257,54 @@ class cap(object):
         self._seed = seed
         self._X_mat = X_mat
 
+        # ---- Validate and process condition matrix ----
+        if condition is not None:
+            if not isinstance(condition, pd.DataFrame):
+                raise ValueError('condition must be a pandas.DataFrame')
+            if condition.shape[0] != n:
+                raise ValueError('condition must have the same number of rows as D')
+            cond_mat, cond_names, _ = _dummy_matrix(condition, scale=False)
+            self.condition_vars = cond_names
+        else:
+            cond_mat = None
+            self.condition_vars = None
+
         # ---- Step 1: PCoA of dissimilarity matrix ----
-        F_pcoa, evals_pos , evals_all = _pcoa(D_arr)
+        F_pcoa, evals_pos, evals_all = _pcoa(D_arr)
         self.total_inertia = float(evals_pos.sum())
-        self._F_pcoa = F_pcoa         # used for permutation test
         self._evals_pcoa = evals_pos
 
-        # ---- PCoA non-Eucliedan diagnostics ----
+        # ---- PCoA non-Euclidean diagnostics ----
         neg_evals = evals_all[evals_all < -1e-10]
         self.n_neg_evals = int(len(neg_evals))
         self.neg_inertia = float(np.abs(neg_evals).sum())
         total_abs = float(np.abs(evals_all).sum())
         self.neg_fraction = self.neg_inertia / total_abs if total_abs > 0 else 0.0
 
+        # ---- Step 1b: Partial out condition variables (if supplied) ----
+        # Regress each PCoA axis on the condition matrix and retain residuals.
+        # This removes nuisance variance (e.g. block effects) from the
+        # coordinate space before constraining on X — equivalent to vegan's
+        # Condition() / partial dbRDA.
+        if cond_mat is not None:
+            reg = LinearRegression(fit_intercept=True)
+            reg.fit(cond_mat, F_pcoa)
+            F_pcoa = F_pcoa - reg.predict(cond_mat)
+            # Recompute total inertia in the partialled space so that R² and
+            # F are expressed relative to the variance available after
+            # conditioning — consistent with vegan's capscale() behaviour.
+            _, evals_partial, _ = _pcoa(
+                _euclidean_dist(F_pcoa)
+            )
+            self.total_inertia = float(evals_partial.sum())
+            F_pcoa_analysis = F_pcoa
+        else:
+            F_pcoa_analysis = F_pcoa
+
+        self._F_pcoa = F_pcoa_analysis   # used for permutation test
+
         # ---- Step 2–4: Hat matrix projection + SVD ----
-        result = _dbrda(F_pcoa, X_mat)
+        result = _dbrda(F_pcoa_analysis, X_mat)
 
         self.cap_evals  = result['cap_evals']
         self.res_evals  = result['res_evals']
@@ -314,6 +361,8 @@ class cap(object):
         print('\nCAP / dbRDA Summary')
         print(sep)
         print('  Samples (n):        {}'.format(len(self.siteNames)))
+        if self.condition_vars:
+            print('  Conditioned on:     {}'.format(', '.join(self.condition_vars)))
         print('  Constraining vars:  {}'.format(len(self.varNames_x)))
         print('  CAP axes:           {}'.format(self.n_cap_axes))
         print(sep)
@@ -529,6 +578,12 @@ class cap(object):
 # ======================================================================
 # Module-level helper functions (private)
 # ======================================================================
+
+def _euclidean_dist(coords):
+    """Compute Euclidean distance matrix from coordinate matrix."""
+    from scipy.spatial.distance import pdist, squareform
+    return squareform(pdist(coords, metric='euclidean'))
+
 
 def _pcoa(D):
     """
