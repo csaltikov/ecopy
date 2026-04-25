@@ -1,7 +1,8 @@
 import numpy as np
 from pandas import DataFrame, get_dummies
 import matplotlib.pyplot as plt
-from ..base_funcs import wt_scale
+from ecopy.base_funcs import wt_scale
+
 
 class rlq(object):
     """
@@ -170,7 +171,7 @@ def dummyMat(matrix, rows, columns, row_w):
         id1 = 'q'
         if matrix.iloc[:,col].dtype=='int':
             matrix.iloc[:,col] = matrix.iloc[:,col].apply(float)
-        elif matrix.iloc[:,col].dtype=='object':
+        elif matrix.iloc[:,col].dtype=='str':
             id1 = 'f'
         columnType[col] = id1
     modMat = np.array([0]*rows).reshape(rows, 1)
@@ -216,3 +217,14 @@ def normalize(X, w):
     normedMat = DataFrame(normedMat, index=X.index)
     normedMat.columns = X.columns
     return normedMat
+
+
+if __name__ == '__main__':
+    import ecopy as ep
+    traits = ep.load_data('avi_traits')
+    env = ep.load_data('avi_env')
+    sp = ep.load_data('avi_sp')
+
+    rlq_output = ep.rlq(env, sp, traits)
+    print(rlq_output.summary().iloc[:,:3])
+    rlq_output.biplot()

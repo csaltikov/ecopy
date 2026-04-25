@@ -1,6 +1,6 @@
-from multiprocessing import Pool, cpu_count
+from multiprocessing import Pool, cpu_count, get_context
 import numpy as np
-from patsy import dmatrix
+from formulaic import model_matrix
 import time
 import sys
 
@@ -39,7 +39,7 @@ def _decompose_standalone(X, factors, decomp_type=1):
 
     factor_names = list(factors.columns)
     formula = "*".join([f"C({f}, Sum)" for f in factor_names])
-    design = dmatrix(formula, factors, return_type='dataframe')
+    design = model_matrix(formula, factors)
 
     effect_groups = _build_effect_groups(design)
     effect_matrices = {}
@@ -137,7 +137,7 @@ def run_permutations(SS, factors, X, decomp_type, nperm=999, verbose=True):
         ))
     ncores = max(1, cpu_count() - 1)
 
-    with Pool(ncores) as pool:
+    with get_context("fork").Pool(ncores) as pool:
         if verbose:
             print(f"Permutation testing: {len(args_list)} terms × "
                   f"{nperm} permutations ({ncores} cores)")

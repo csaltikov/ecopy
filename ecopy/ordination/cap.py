@@ -1,209 +1,178 @@
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyArrowPatch
 from warnings import warn
 from collections import defaultdict
+from pathlib import Path
 
 from numpy import ndarray
 from sklearn.linear_model import LinearRegression
 
 
 class cap(object):
-    """
-    Docstring for function ecopy.cap
-    ====================
-    Conducts Canonical Analysis of Principal Coordinates (CAP), also known
-    as distance-based Redundancy Analysis (dbRDA), following McArdle &
-    Anderson (2001). Accepts any user-supplied dissimilarity matrix and
-    one or more continuous or categorical constraining variables.
+    """Canonical Analysis of Principal Coordinates (CAP / dbRDA).
+
+    Conducts CAP following McArdle & Anderson (2001), also known as
+    distance-based Redundancy Analysis (dbRDA). Accepts any user-supplied
+    dissimilarity matrix and one or more continuous or categorical
+    constraining variables.
 
     Unlike standard RDA (ecopy.rda), which operates on a raw species matrix,
     CAP begins from a dissimilarity matrix — allowing the use of metrics such
     as Bray-Curtis that are ecologically appropriate but not Euclidean.
 
-    Workflow
-    --------
-    1. PCoA of the dissimilarity matrix (Gower 1966) retaining only
-       positive-eigenvalue axes (negative eigenvalues from non-Euclidean
-       metrics are dropped).
-    2. Hat-matrix projection of PCoA coordinates onto the space defined
-       by the environmental matrix X (ordinary least squares).
-    3. SVD of the fitted (constrained) matrix → CAP axes.
-    4. SVD of the residual matrix → residual PC axes (for plotting when
-       fewer constrained axes than needed).
-    5. Permutation F-test of overall model significance.
+    Workflow:
+        1. PCoA of the dissimilarity matrix (Gower 1966) retaining only
+           positive-eigenvalue axes (negative eigenvalues from non-Euclidean
+           metrics are dropped).
+        2. Hat-matrix projection of PCoA coordinates onto the space defined
+           by the environmental matrix X (ordinary least squares).
+        3. SVD of the fitted (constrained) matrix → CAP axes.
+        4. SVD of the residual matrix → residual PC axes (for plotting when
+           fewer constrained axes than needed).
+        5. Permutation F-test of overall model significance.
 
-    Use
-    ----
-    cap(D, X, condition=None, scale_x=True, varNames_x=None,
-        siteNames=None, pTypes=None, nperm=999, seed=42)
+    Args:
+        D (pd.DataFrame or np.ndarray): Square symmetric dissimilarity matrix.
+            Typical input is a Bray-Curtis matrix computed from
+            Hellinger-transformed or raw species counts.
+        X (pd.DataFrame or np.ndarray): Environmental constraining variables
+            (sites x variables). May contain continuous (quantitative) or
+            categorical (factor) columns. Categorical columns must be
+            object/string dtype in a DataFrame and are automatically
+            dummy-coded with the first alphabetical level dropped as the
+            reference. Use the ``reference`` argument to override which
+            level is dropped.
+        condition (pd.DataFrame, optional): Conditioning (nuisance) variables
+            to partial out before the constrained analysis. These are removed
+            from the PCoA coordinates via linear regression, equivalent to
+            vegan's ``Condition()`` in ``capscale()``. Typical use:
+            ``condition=metadata[['block']]`` in a randomized block design.
+            Both numeric and categorical columns are supported; categorical
+            columns are dummy-coded automatically. Conditioning variables
+            are never scaled.
+        reference (dict, optional): Explicit reference (baseline) levels for
+            categorical columns in X. Keys are column names in X; values are
+            the level to use as the reference (dropped dummy). Example::
 
-    Returns an object of class cap
+                reference={'nitrogen': 'NoNit', 'treatment': 'FG'}
 
-    Parameters
-    ----------
-    D:
-        Square symmetric dissimilarity matrix. pandas.DataFrame or
-        numpy.ndarray. Typical input is a Bray-Curtis matrix computed
-        from Hellinger-transformed or raw species counts.
-    X:
-        Environmental constraining variables. pandas.DataFrame or
-        numpy.ndarray (sites x variables). May contain continuous
-        (quantitative) or categorical (factor) variables. Categorical
-        columns should be object/string dtype in a DataFrame and will
-        be automatically dummy-coded.
-    condition:
-        Optional pandas.DataFrame of conditioning (nuisance) variables
-        to partial out before the constrained analysis. These variables
-        are removed from the PCoA coordinates via linear regression
-        before CAP is applied to X. Equivalent to vegan's Condition()
-        argument in capscale(). Typical use: condition=metadata[['block']]
-        in a randomized block design to remove block effects before
-        testing treatment. Numeric and categorical columns are both
-        supported; categorical columns are dummy-coded automatically.
-        Conditioning variables are never scaled.
-    scale_x:
-        Whether to standardize continuous columns of X to zero
-        mean and unit variance before analysis (True, recommended).
-        Categorical dummy columns are never scaled.
-    varNames_x:
-        Optional list of names for environmental variables.
-        If None, taken from DataFrame columns or auto-generated.
-    siteNames:
-        Optional list of site/sample names. If None, taken
-        from the index of D (if DataFrame) or auto-generated.
-    pTypes:
-        Optional list of 'q' (quantitative) or 'f' (factor) for
-        each column of X. If None, inferred automatically from dtype.
-    nperm:
-        Number of permutations for the F-test (default 999).
-    seed:
-        Random seed for reproducibility (default 42).
+            Columns not listed fall back to dropping the first alphabetical
+            level. Has no effect on numeric columns or on the condition matrix.
+        scale_x (bool): Standardize continuous columns of X to zero mean and
+            unit variance before analysis. Categorical dummy columns are never
+            scaled. Defaults to True.
+        varNames_x (list of str, optional): Names for the environmental
+            variables. If None, taken from DataFrame columns or auto-generated
+            as 'Pred 1', 'Pred 2', ...
+        siteNames (list, optional): Sample/site labels. If None, taken from
+            the index of D (if DataFrame) or auto-generated as 'Site 1', ...
+        pTypes (list of str, optional): Per-variable type codes: 'q'
+            (quantitative) or 'f' (factor). If None, inferred automatically
+            from column dtype.
+        nperm (int): Number of permutations for the F-test. Defaults to 999.
+        seed (int): Random seed for reproducibility. Defaults to 42.
 
-    Attributes
-    ----------
-    condition_vars:
-        List of conditioning variable names that were partialled out,
-        or None if no condition was supplied.
-    capScores:
-        Site scores on constrained CAP axes (DataFrame,
-        sites x CAP axes). These are your primary ordination
-        coordinates for plotting.
-    resScores:
-        Site scores on residual (unconstrained) PC axes
-        (DataFrame, sites x residual axes). Use as the Y-axis
-        when only one CAP axis exists (single constraining var).
-    envScores:
-        Correlation of each environmental variable with each
-        CAP axis (DataFrame, variables x CAP axes). Used for
-        biplot arrows.
-    cap_evals:
-        Eigenvalues of the constrained axes (numpy array).
-    res_evals:
-        Eigenvalues of the residual axes (numpy array).
-    total_inertia:
-        Total inertia (sum of positive PCoA eigenvalues).
-    R2:
-        Proportion of total inertia explained by the model.
-    R2adj:
-        Adjusted R2 (Peres-Neto et al. 2006).
-    F_stat:
-        Pseudo-F statistic for the overall model.
-    p_value:
-        Permutation p-value for the overall model.
-    df_c:
-        Degrees of freedom for constrained component (rank of X).
-    df_r:
-        Degrees of freedom for residual component (n - rank - 1).
-    imp:
-        DataFrame of Std Dev, Prop. Variance, Cumulative Variance
-        for all CAP + residual PC axes (mirrors ecopy.rda style).
-    n_cap_axes:
-        Number of constrained (CAP) axes.
-    n_res_axes:
-        Number of residual PC axes.
-    n_neg_evals:
-        Number of negative PCoA eigenvalues (non-Euclidean
-        axes dropped before constrained analysis). Zero for
-        Euclidean dissimilarities.
-    neg_inertia:
-        Sum of |λ| over the negative PCoA eigenvalues.
-    neg_fraction:
-        neg_inertia / Σ|λ_all|. Fraction of total eigenvalue
-        mass on non-Euclidean axes. A useful diagnostic for
-        how far the input dissimilarity departs from Euclidean
-        geometry — values >0.1 suggest meaningful distortion
-        and you may want to consider sqrt-transforming D or
-        applying a Cailliez/Lingoes correction upstream.
+    Attributes:
+        condition_vars (list of str or None): Names of conditioning variables
+            that were partialled out, or None if no condition was supplied.
+        capScores (pd.DataFrame): Site scores on constrained CAP axes
+            (sites x CAP axes). Primary ordination coordinates for plotting.
+        resScores (pd.DataFrame): Site scores on residual (unconstrained) PC
+            axes (sites x residual axes). Used as the Y-axis when only one
+            CAP axis exists.
+        envScores (pd.DataFrame): Correlation of each environmental variable
+            with each CAP axis (variables x CAP axes). Used for biplot arrows.
+        cap_evals (np.ndarray): Eigenvalues of the constrained axes.
+        res_evals (np.ndarray): Eigenvalues of the residual axes.
+        total_inertia (float): Total inertia (sum of positive PCoA
+            eigenvalues). When a condition is supplied this reflects the
+            partialled space.
+        R2 (float): Proportion of total inertia explained by the model.
+        R2adj (float): Adjusted R² (Peres-Neto et al. 2006).
+        F_stat (float): Pseudo-F statistic for the overall model.
+        p_value (float): Permutation p-value for the overall model.
+        df_c (int): Degrees of freedom for the constrained component
+            (rank of X).
+        df_r (int): Degrees of freedom for the residual component
+            (n - rank - 1).
+        imp (pd.DataFrame): Std Dev, Prop. Variance, and Cumulative Variance
+            for all CAP and residual PC axes.
+        n_cap_axes (int): Number of constrained (CAP) axes.
+        n_res_axes (int): Number of residual PC axes.
+        n_neg_evals (int): Number of negative PCoA eigenvalues (non-Euclidean
+            axes dropped before constrained analysis). Zero for Euclidean
+            dissimilarities.
+        neg_inertia (float): Sum of absolute values of negative PCoA
+            eigenvalues.
+        neg_fraction (float): neg_inertia / sum(|all eigenvalues|). Fraction
+            of total eigenvalue mass on non-Euclidean axes. Values >0.1
+            suggest meaningful distortion; consider sqrt-transforming D or
+            applying a Cailliez/Lingoes correction upstream.
+        siteNames (list of str): Sample/site labels used in plots and tables.
+        varNames_x (list of str): Environmental variable names.
+        pTypes (list of str): Per-variable type codes ('q' or 'f').
 
-    Methods
-    -------
-    summary():
-        Prints a text summary of constrained and residual inertia, R2,
-        adjusted R2, the permutation F-test result, and variance
-        explained per axis.
+    Example:
+        >>> import ecopy as ep
+        >>> import pandas as pd
+        >>> D = ep.distance(ep.load_data('BCI'), method='bray')
+        >>> env = pd.DataFrame({'Depth': [5, 10, 15, 20, 25, 30],
+        ...                     'pH': [8.1, 8.3, 8.5, 8.7, 8.8, 8.9]})
+        >>> result = ep.cap(D, env, nperm=999)
+        >>> result.summary()
+        >>> result.anova()
+        >>> fig, ax = result.biplot(color_by=env['Depth'].values)
 
-    anova(nperm=None):
-        Runs (or re-runs) the permutation F-test. Returns F statistic
-        and p-value. nperm overrides the value set at construction.
-
-    biplot(xax=1, yax=2, color_by=None, markers=None,
-           arrow_scale=0.8, site_labels=True, figsize=(7,6), **kwargs):
-        Produces a CAP biplot with site scores and environmental
-        variable arrows. When only one CAP axis exists, yax
-        automatically uses the first residual PC.
-
-        xax: Integer, which CAP axis on x (default 1).
-        yax: Integer, which CAP/residual axis on y (default 2).
-        color_by: Optional array-like of length n for point colors.
-        markers: Optional array-like of length n for point markers.
-        arrow_scale: Scale factor for biplot arrows (default 0.8).
-        site_labels: Whether to annotate site names (default True).
-        figsize: Figure size tuple.
-        kwargs:
-            f_name: string or path to save the biplot
-        return:
-            fig, ax
-
-    Example
-    -------
-    import ecopy as ep
-    import numpy as np
-    import pandas as pd
-
-    # Species count matrix (sites x species)
-    BCI = ep.load_data('BCI')
-
-    # Bray-Curtis dissimilarity
-    D = ep.distance(BCI, method='bray')
-
-    # Environmental variables
-    env = pd.DataFrame({
-        'Depth': [5, 10, 15, 20, 25, 30],
-        'pH':    [8.1, 8.3, 8.5, 8.7, 8.8, 8.9]
-    })
-
-    # Run CAP
-    result = ep.cap(D, env)
-    print(result.summary())
-    result.anova()
-    fig, ax = result.biplot()
-
-    References
-    ----------
-    McArdle BH, Anderson MJ (2001) Fitting multivariate models to
+    References:
+        McArdle BH, Anderson MJ (2001) Fitting multivariate models to
         community data: a comment on distance-based redundancy analysis.
         Ecology 82:290-297.
-    Legendre P, Anderson MJ (1999) Distance-based redundancy analysis:
+
+        Legendre P, Anderson MJ (1999) Distance-based redundancy analysis:
         testing multispecies responses in multifactorial ecological
         experiments. Ecol Monogr 69:1-24.
-    Peres-Neto PR et al. (2006) Variation partitioning of species data
+
+        Peres-Neto PR et al. (2006) Variation partitioning of species data
         matrices: estimation and comparison of fractions. Ecology 87:2614-2625.
     """
+    def __init__(self,
+                 D: pd.DataFrame | np.ndarray,
+                 X: pd.DataFrame | np.ndarray,
+                 condition: pd.DataFrame | None = None,
+                 reference: dict | None = None,
+                 scale_x: bool = True,
+                 varNames_x: list[str] | None = None,
+                 siteNames: list | None = None,
+                 pTypes: list[str] | None = None,
+                 nperm: int = 999,
+                 seed: int = 42):
 
-    def __init__(self, D, X, condition=None, scale_x=True, varNames_x=None,
-                 siteNames=None, pTypes=None, nperm=999, seed=42):
+        # — type annotations for IDE support —
+        self.condition_vars: list[str] | None
+        self.capScores: pd.DataFrame
+        self.resScores: pd.DataFrame
+        self.envScores: pd.DataFrame
+        self.cap_evals: np.ndarray
+        self.res_evals: np.ndarray
+        self.total_inertia: float
+        self.R2: float
+        self.R2adj: float
+        self.F_stat: float
+        self.p_value: float
+        self.df_c: int
+        self.df_r: int
+        self.imp: pd.DataFrame
+        self.n_cap_axes: int
+        self.n_res_axes: int
+        self.n_neg_evals: int
+        self.neg_inertia: float
+        self.neg_fraction: float
+        self.siteNames: list[str]
+        self.varNames_x: list[str]
+        self.pTypes: list[str]
 
         # ---- Input validation ----
         if not isinstance(D, (pd.DataFrame, np.ndarray)):
@@ -231,9 +200,14 @@ class cap(object):
         else:
             self.siteNames = ['Site {}'.format(i) for i in range(1, n + 1)]
 
+        # ---- Validate reference dict ----
+        if reference is not None:
+            if not isinstance(reference, dict):
+                raise ValueError('reference must be a dict mapping column names to reference levels')
+
         # ---- Process environmental matrix ----
         if isinstance(X, pd.DataFrame):
-            X_mat, varNames_x, pTypes = _dummy_matrix(X, scale_x)
+            X_mat, varNames_x, pTypes = _dummy_matrix(X, scale_x, reference=reference)
         elif isinstance(X, np.ndarray):
             if X.dtype == object:
                 raise ValueError('numpy.ndarray X cannot have object dtype; use a DataFrame for categorical variables')
@@ -257,6 +231,7 @@ class cap(object):
         self._nperm = nperm
         self._seed = seed
         self._X_mat = X_mat
+        self._reference = reference if reference else {}
 
         # ---- Validate and process condition matrix ----
         if condition is not None:
@@ -329,7 +304,6 @@ class cap(object):
                                    columns=res_names)
 
         # ---- Environmental correlations (biplot arrows) ----
-        # Correlate each env variable with each CAP axis
         env_corr = np.zeros((len(self.varNames_x), self.n_cap_axes))
         for i in range(X_mat.shape[1]):
             for j in range(self.n_cap_axes):
@@ -356,14 +330,22 @@ class cap(object):
         self.p_value = self._permtest(nperm, seed)
 
     # ------------------------------------------------------------------
-    def summary(self):
-        """Print a formatted summary of the CAP analysis."""
+    def summary(self) -> None:
+        """Print a formatted summary of the CAP analysis.
+
+        Displays constrained and residual inertia, R², adjusted R²,
+        the permutation F-test result, variance per axis, and
+        environmental correlations with CAP axes.
+        """
         sep = '-' * 52
         print('\nCAP / dbRDA Summary')
         print(sep)
         print('  Samples (n):        {}'.format(len(self.siteNames)))
         if self.condition_vars:
             print('  Conditioned on:     {}'.format(', '.join(self.condition_vars)))
+        if self._reference:
+            for col, ref in self._reference.items():
+                print('  Reference ({}):  {}'.format(col, ref))
         print('  Constraining vars:  {}'.format(len(self.varNames_x)))
         print('  CAP axes:           {}'.format(self.n_cap_axes))
         print(sep)
@@ -393,17 +375,16 @@ class cap(object):
         print()
 
     # ------------------------------------------------------------------
-    def anova(self, nperm=None):
-        """
-        Run (or re-run) the permutation F-test.
+    def anova(self, nperm: int | None = None) -> dict:
+        """Run or re-run the permutation F-test.
 
-        Parameters
-        ----------
-        nperm: int or None. If None, uses the value from construction.
+        Args:
+            nperm (int, optional): Number of permutations. If None, uses
+                the value set at construction.
 
-        Returns
-        -------
-        dict with keys 'F_stat', 'p_value', 'nperm'
+        Returns:
+            dict: Keys are 'F_stat' (float), 'p_value' (float), and
+                'nperm' (int).
         """
         if nperm is None:
             nperm = self._nperm
@@ -415,39 +396,44 @@ class cap(object):
         return {'F_stat': self.F_stat, 'p_value': p, 'nperm': nperm}
 
     # ------------------------------------------------------------------
-    def biplot(self, xax=1, yax=2, color_by: list|ndarray=None, markers: list|ndarray =None,
-               arrow_scale=0.8, site_labels=True, figsize=(7, 6), **kwargs):
-        """
-        Produce a CAP biplot with site scores and environmental arrows.
+    def biplot(self,
+               xax: int = 1,
+               yax: int = 2,
+               color_by: list | ndarray | None = None,
+               markers: list | ndarray | None = None,
+               arrow_scale: float = 0.8,
+               site_labels: bool = True,
+               figsize: tuple = (7, 6),
+               **kwargs) -> tuple[plt.Figure, plt.Axes]:
+        """Produce a CAP biplot with site scores and environmental arrows.
 
-        Parameters
-        ----------
-        xax:
-            int — which CAP axis on x-axis (1-indexed, default 1).
-        yax: int — which CAP/ResPC axis on y-axis (1-indexed, default 2).
-             If fewer than 2 CAP axes exist, yax automatically refers to
-             the first residual PC axis regardless of this value.
-        color_by:
-            array-like of length n, used to color points. If numeric,
-             a colormap is applied. If categorical, unique colors per group.
-        markers:
-            array-like of length n, matplotlib marker strings per site.
-        arrow_scale:
-            float, scale factor for biplot arrows (default 0.8).
-        site_labels:
-            bool, whether to annotate site names (default True).
-        figsize:
-            tuple, figure size (default (7, 6)).
-        kwargs: str|Path
-            f_name: this is string/path for saving the biplot
+        When only one CAP axis exists, yax automatically uses the first
+        residual PC. Quantitative variables are shown as arrows; factor
+        levels are shown as text centroids.
 
-        Returns
-        -------
-        fig : matplotlib.figure.Figure
-            The figure object.
-        ax : matplotlib.axes.Axes
-            The axes object. Use these to further customize the plot
-            before calling plt.show() or fig.savefig().
+        Args:
+            xax (int): CAP axis on the x-axis, 1-indexed. Defaults to 1.
+            yax (int): CAP or residual PC axis on the y-axis, 1-indexed.
+                If fewer than 2 CAP axes exist, y-axis automatically uses
+                the first residual PC regardless of this value.
+                Defaults to 2.
+            color_by (array-like, optional): Point colors, length n.
+                Numeric arrays use a viridis colormap; categorical arrays
+                assign one color per unique level.
+            markers (array-like, optional): Matplotlib marker strings,
+                one per site.
+            arrow_scale (float): Scale factor for biplot arrows.
+                Defaults to 0.8.
+            site_labels (bool): Whether to annotate site names on the plot.
+                Defaults to True.
+            figsize (tuple): Figure size in inches. Defaults to (7, 6).
+            **kwargs: Optional keyword arguments.
+                f_name (str or Path): If provided, saves figure at dpi=300.
+
+        Returns:
+            tuple[plt.Figure, plt.Axes]: The figure and axes objects for
+                further customization before calling plt.show() or
+                fig.savefig().
         """
         xi = xax - 1
 
@@ -457,7 +443,6 @@ class cap(object):
             y_scores = self.capScores.iloc[:, yax - 1].values
             x_label  = self.capScores.columns[xi]
             y_label  = self.capScores.columns[yax - 1]
-            # env arrow correlations
             arrow_x = self.envScores.iloc[:, xi].values
             arrow_y = self.envScores.iloc[:, yax - 1].values
         else:
@@ -467,7 +452,6 @@ class cap(object):
             x_label  = self.capScores.columns[0]
             y_label  = self.resScores.columns[0] + ' (unconstrained)'
             arrow_x = self.envScores.iloc[:, 0].values
-            # correlation of env vars with ResPC1
             arrow_y = np.array([
                 np.corrcoef(self._X_mat[:, i], y_scores)[0, 1]
                 for i in range(self._X_mat.shape[1])
@@ -511,8 +495,6 @@ class cap(object):
             markers = ['o'] * n
 
         # ---- Arrow scale ----
-        # max_score = max(np.abs(x_scores).max(), np.abs(y_scores).max())
-        # sc = max_score * arrow_scale
         x_range = x_scores.max() - x_scores.min()
         y_range = y_scores.max() - y_scores.min()
         sc_x = x_range * arrow_scale * 0.5
@@ -565,14 +547,22 @@ class cap(object):
             fontsize=10)
         ax.grid(True, alpha=0.2)
         plt.tight_layout()
-        f_name = kwargs.get("f_name", None)
+        f_name = kwargs.get('f_name', None)
         if f_name:
             plt.savefig(f_name, dpi=300, bbox_inches='tight')
         return fig, ax
 
     # ------------------------------------------------------------------
-    def _permtest(self, nperm, seed):
-        """Permutation F-test: shuffle rows of X, refit, compare F."""
+    def _permtest(self, nperm: int, seed: int) -> float:
+        """Permutation F-test: shuffle rows of X, refit, compare F.
+
+        Args:
+            nperm (int): Number of permutations.
+            seed (int): Random seed.
+
+        Returns:
+            float: Permutation p-value.
+        """
         np.random.seed(seed)
         n = self._F_pcoa.shape[0]
         perm_F = np.empty(nperm)
@@ -588,21 +578,36 @@ class cap(object):
 # Module-level helper functions (private)
 # ======================================================================
 
-def _euclidean_dist(coords):
-    """Compute Euclidean distance matrix from coordinate matrix."""
+def _euclidean_dist(coords: np.ndarray) -> np.ndarray:
+    """Compute Euclidean distance matrix from coordinate matrix.
+
+    Args:
+        coords (np.ndarray): Coordinate matrix (n x k).
+
+    Returns:
+        np.ndarray: Square Euclidean distance matrix (n x n).
+    """
     from scipy.spatial.distance import pdist, squareform
     return squareform(pdist(coords, metric='euclidean'))
 
 
-def _pcoa(D):
-    """
-    Principal Coordinates Analysis (Gower 1966).
-    Returns F (site scores, n x k) and positive eigenvalues.
-    Only positive-eigenvalue axes are retained.
+def _pcoa(D: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Principal Coordinates Analysis (Gower 1966).
+
+    Only positive-eigenvalue axes are retained. Negative eigenvalues
+    from non-Euclidean dissimilarity metrics are dropped.
+
+    Args:
+        D (np.ndarray): Square symmetric dissimilarity matrix (n x n).
+
+    Returns:
+        tuple:
+            - F (np.ndarray): Site scores (n x k), positive axes only.
+            - evals_pos (np.ndarray): Positive eigenvalues.
+            - eigenvalues (np.ndarray): All eigenvalues, sorted descending.
     """
     n = D.shape[0]
     A = -0.5 * D ** 2
-    ones = np.ones(n)
     # Double centering
     row_mean   = A.mean(axis=1, keepdims=True)
     col_mean   = A.mean(axis=0, keepdims=True)
@@ -622,13 +627,21 @@ def _pcoa(D):
     return F, evals_pos, eigenvalues
 
 
-def _dbrda(F, X):
-    """
-    Core dbRDA computation (McArdle & Anderson 2001).
-    Projects PCoA coordinates F onto the subspace defined by X
-    via the hat matrix, then decomposes via SVD.
+def _dbrda(F: np.ndarray, X: np.ndarray) -> dict:
+    """Core dbRDA computation (McArdle & Anderson 2001).
 
-    Returns dict with cap_scores, res_scores, eigenvalues, R2, F_stat etc.
+    Projects PCoA coordinates F onto the subspace defined by X via the
+    hat matrix, then decomposes via SVD.
+
+    Args:
+        F (np.ndarray): PCoA site scores (n x k).
+        X (np.ndarray): Environmental design matrix (n x p), already
+            scaled and dummy-coded.
+
+    Returns:
+        dict: Keys are 'cap_scores', 'res_scores', 'cap_evals',
+            'res_evals', 'constrained', 'residual', 'R2', 'F_stat',
+            'df_c', 'df_r', 'rank'.
     """
     n = F.shape[0]
 
@@ -663,8 +676,8 @@ def _dbrda(F, X):
     F_stat = (constrained / df_c) / (residual / df_r) if df_r > 0 and residual > 0 else np.nan
 
     return dict(
-        cap_scores  = U_c * s_c,      # n x n_cap_axes
-        res_scores  = U_r * s_r,      # n x n_res_axes
+        cap_scores  = U_c * s_c,
+        res_scores  = U_r * s_r,
         cap_evals   = cap_evals,
         res_evals   = res_evals,
         constrained = constrained,
@@ -677,15 +690,38 @@ def _dbrda(F, X):
     )
 
 
-def _dummy_matrix(X_df, scale):
-    """
-    Convert a DataFrame with mixed numeric/categorical columns into a
-    design matrix. Categorical columns are dummy-coded (one-hot, dropping
-    first level to avoid multicollinearity). Numeric columns are optionally
-    standardized.
+def _dummy_matrix(X_df: pd.DataFrame,
+                  scale: bool,
+                  reference: dict | None = None) -> tuple[np.ndarray, list, list]:
+    """Convert a DataFrame with mixed numeric/categorical columns into a design matrix.
 
-    Returns (X_mat, varNames, pTypes)
+    Numeric columns are optionally standardized to zero mean and unit
+    variance. Categorical columns are dummy-coded (one-hot) with one
+    level dropped to avoid multicollinearity. By default the first
+    alphabetical level is dropped; use ``reference`` to specify an
+    explicit baseline level per column.
+
+    Args:
+        X_df (pd.DataFrame): Input data with numeric and/or categorical
+            columns.
+        scale (bool): If True, standardize numeric columns to zero mean
+            and unit variance.
+        reference (dict, optional): Mapping of {column_name: reference_level}
+            for categorical columns. The named level is dropped from the
+            dummy matrix. Columns not present fall back to dropping the
+            first alphabetical level.
+
+    Returns:
+        tuple:
+            - X_mat (np.ndarray): Encoded design matrix, shape
+              (n_rows, n_cols_encoded).
+            - varNames (list of str): Variable names for each column.
+            - pTypes (list of str): Type codes per column,
+              'q' = quantitative, 'f' = factor.
     """
+    if reference is None:
+        reference = {}
+
     rows = X_df.shape[0]
     X_mat    = np.zeros((rows, 0))
     varNames = []
@@ -712,38 +748,45 @@ def _dummy_matrix(X_df, scale):
             varNames.append(col)
             pTypes.append('q')
         else:
-            # Genuinely categorical — dummy code, drop first level
-            dummies = pd.get_dummies(series, drop_first=True)
+            # Genuinely categorical — dummy code, dropping the reference level.
+            dummies = pd.get_dummies(series, drop_first=False).astype(float)
+            if col in reference:
+                ref_level = reference[col]
+                if ref_level not in dummies.columns:
+                    raise ValueError(
+                        "reference level '{}' not found in column '{}'. "
+                        "Available levels: {}".format(ref_level, col, list(dummies.columns))
+                    )
+                dummies = dummies.drop(columns=ref_level)
+            else:
+                dummies = dummies.iloc[:, 1:]
             level_names = ['{}: {}'.format(col, lv) for lv in dummies.columns]
-            X_mat = np.hstack([X_mat, dummies.values.astype(float)])
+            X_mat = np.hstack([X_mat, dummies.values])
             varNames.extend(level_names)
             pTypes.extend(['f'] * len(level_names))
 
     return X_mat, varNames, pTypes
 
 
-def _label_sites(scores_x, scores_y, site_names, ax):
-    """
-    Place site labels on an ordination biplot with edge-aware offsets and
-    grouping for near-coincident points.
+def _label_sites(scores_x: np.ndarray,
+                 scores_y: np.ndarray,
+                 site_names: list,
+                 ax: plt.Axes) -> plt.Axes:
+    """Place site labels on an ordination biplot with edge-aware offsets.
 
-    Points within ~3% of the larger axis range of each other are grouped and
-    their labels stacked vertically. Labels for points in the outer 25% of
-    either axis are flipped to stay inside the plot region.
+    Points within ~3% of the larger axis range of each other are grouped
+    and their labels stacked vertically. Labels for points in the outer
+    25% of either axis are flipped to stay inside the plot region.
 
-    Parameters
-    ----------
-    scores_x, scores_y : array-like
-        Site coordinates on the x and y axes of the biplot.
-    site_names : sequence of str
-        Labels for each site, same length as scores_x and scores_y.
-    ax : matplotlib Axes
-        The axis to annotate.
+    Args:
+        scores_x (np.ndarray): Site coordinates on the x-axis.
+        scores_y (np.ndarray): Site coordinates on the y-axis.
+        site_names (list of str): Labels for each site, same length as
+            scores_x and scores_y.
+        ax (plt.Axes): The matplotlib axes to annotate.
 
-    Returns
-    -------
-    ax : matplotlib Axes
-        The same axis, with annotations added.
+    Returns:
+        plt.Axes: The same axes, with annotations added.
     """
     scores_x = np.asarray(scores_x)
     scores_y = np.asarray(scores_y)
@@ -753,12 +796,10 @@ def _label_sites(scores_x, scores_y, site_names, ax):
     x_range = x_max - x_min
     y_range = y_max - y_min
 
-    # A point is "near an edge" if it sits in the outer 25% of the axis span.
     edge_frac = 0.25
     x_right_edge = x_max - edge_frac * x_range
     y_top_edge   = y_max - edge_frac * y_range
 
-    # Group points within ~3% of the larger axis range (Euclidean distance).
     tol = 0.03 * max(x_range, y_range)
     tol_sq = tol * tol
     n = len(scores_x)
@@ -814,3 +855,8 @@ def _label_sites(scores_x, scores_y, site_names, ax):
                             textcoords='offset points',
                             ha=ha, va=va)
     return ax
+
+
+if __name__ == '__main__':
+    help(cap)
+    help(cap.biplot)

@@ -1,5 +1,6 @@
 import numpy as np
-from pandas import DataFrame, get_dummies
+import pandas as pd
+# from pandas import DataFrame, get_dummies
 import matplotlib.pyplot as plt
 
 class rda(object):
@@ -75,13 +76,13 @@ class rda(object):
     """
     def __init__(self, Y, X, scale_y=True, scale_x=False, design_x=False, varNames_y=None, varNames_x=None, rowNames=None, pTypes=None, sig=False):
         tolerance = 1E-6
-        if not isinstance(Y, (DataFrame, np.ndarray)):
+        if not isinstance(Y, (pd.DataFrame, np.ndarray)):
             msg = 'Matrix Y must be a pandas.DataFrame or numpy.ndarray'
             raise ValueError(msg)
-        if not isinstance(X, (DataFrame, np.ndarray)):
+        if not isinstance(X, (pd.DataFrame, np.ndarray)):
             msg = 'Matrix X must be a pandas.DataFrame or numpy.ndarray'
             raise ValueError(msg)
-        if isinstance(X, DataFrame):
+        if isinstance(X, pd.DataFrame):
             if X.isnull().any().any():
                 msg = 'Matrix X contains null values'
                 raise ValueError(msg)
@@ -92,7 +93,7 @@ class rda(object):
             if np.isnan(X).any():
                 msg = 'Matrix X contains null values'
                 raise ValueError(msg)
-        if isinstance(Y, DataFrame):
+        if isinstance(Y, pd.DataFrame):
             if Y.isnull().any().any():
                 msg = 'Matrix Y contains null values'
                 raise ValueError(msg)
@@ -104,17 +105,17 @@ class rda(object):
                 msg = 'Matrix Y contains null values'
                 raise ValueError(msg)
         if varNames_y is None:
-            if isinstance(Y, DataFrame):
+            if isinstance(Y, pd.DataFrame):
                 varNames_y = Y.columns
             elif isinstance(Y, np.ndarray):
                 varNames_y = ['Sp {0}'.format(x) for x in range(1, Y.shape[1]+1)]
         if varNames_x is None:
-            if isinstance(X, DataFrame):
+            if isinstance(X, pd.DataFrame):
                 varNames_x = X.columns
             elif isinstance(X, np.ndarray):
                 varNames_x = ['Pred {0}'.format(x) for x in range(1, X.shape[1]+1)]
         if rowNames is None:
-            if isinstance(Y, DataFrame):
+            if isinstance(Y, pd.DataFrame):
                 rowNames = Y.index.values
             elif isinstance(Y, np.ndarray):
                 rowNames = ['Site {0}'.format(x) for x in range(1, Y.shape[0]+1)]
@@ -123,7 +124,7 @@ class rda(object):
             self.x_mat = np.array(X, dtype='float')
             if pTypes is None:
                 pTypes = ['q']*self.x_mat.shape[1]
-        if not design_x and isinstance(X, DataFrame):
+        if not design_x and isinstance(X, pd.DataFrame):
             self.x_mat, varNames_x, pTypes = dummyMat(X, scale_x)
         elif not design_x and isinstance(X, np.ndarray):
             self.x_mat = np.array(X, dtype='float')
@@ -150,10 +151,10 @@ class rda(object):
         F = self.y_mat.dot(U)
         Z = yhat.dot(U)
         C = B.dot(U)
-        self.spScores = DataFrame(U.dot(np.diag(RDA_evals**0.5)), index=varNames_y)
-        self.linSites = DataFrame(Z.dot(np.diag(RDA_evals**-0.5)), index=rowNames)
-        self.siteScores = DataFrame(F.dot(np.diag(RDA_evals**-0.5)), index=rowNames)
-        self.predScores = DataFrame(C, index=varNames_x)
+        self.spScores = pd.DataFrame(U.dot(np.diag(RDA_evals**0.5)), index=varNames_y)
+        self.linSites = pd.DataFrame(Z.dot(np.diag(RDA_evals**-0.5)), index=rowNames)
+        self.siteScores = pd.DataFrame(F.dot(np.diag(RDA_evals**-0.5)), index=rowNames)
+        self.predScores = pd.DataFrame(C, index=varNames_x)
         RDA_names = ['RDA Axis {0}'.format(x) for x in range(1, len(RDA_evals)+1)]
         self.spScores.columns=RDA_names
         self.linSites.columns=RDA_names
@@ -165,7 +166,7 @@ class rda(object):
         for i in range(self.x_mat.shape[1]):
             for j in range(len(RDA_evals)):
                 self.corr[i,j] = np.corrcoef(self.x_mat[:,i], self.linSites.iloc[:,j])[0,1]
-        self.corr = DataFrame(self.corr, index=varNames_x)
+        self.corr = pd.DataFrame(self.corr, index=varNames_x)
         self.corr.columns = RDA_names
         SSY = np.sum(self.y_mat**2)
         SSYhat = np.sum(yhat**2)
@@ -181,8 +182,8 @@ class rda(object):
         res_evecs = np.real(res_evecs[:,res_evals.argsort()[::-1]])
         self.resid_evals = res_evals[res_evals > tolerance]
         residU = res_evecs[:,res_evals > tolerance]
-        self.resid_spScores = DataFrame(residU.dot(np.diag(self.resid_evals**0.5)), index=varNames_y)
-        self.resid_siteScores = DataFrame(residuals.dot(residU).dot(np.diag(self.resid_evals**0.5)), index=rowNames)
+        self.resid_spScores = pd.DataFrame(residU.dot(np.diag(self.resid_evals**0.5)), index=varNames_y)
+        self.resid_siteScores = pd.DataFrame(residuals.dot(residU).dot(np.diag(self.resid_evals**0.5)), index=rowNames)
         PC_names = ['PC Axis {0}'.format(x) for x in range(1, len(self.resid_evals)+1)]
         self.resid_spScores.columns = PC_names
         self.resid_siteScores.columns = PC_names
@@ -192,7 +193,7 @@ class rda(object):
         props = totevals / totevals.sum()
         cums = np.cumsum(totevals) / totevals.sum()
         RDA_names.extend(PC_names)
-        self.imp = DataFrame(np.vstack((sds, props, cums)), index = ['Std Dev', 'Prop Var', 'Cum Var'])
+        self.imp = pd.DataFrame(np.vstack((sds, props, cums)), index = ['Std Dev', 'Prop Var', 'Cum Var'])
         self.imp.columns = RDA_names
 
 
@@ -258,7 +259,7 @@ def dummyMat(matrix, scale):
         id1 = 'q'
         if matrix.iloc[:,col].dtype=='int':
             matrix.iloc[:,col] = matrix.iloc[:,col].apply(float)
-        elif matrix.iloc[:,col].dtype=='object':
+        elif matrix.iloc[:,col].dtype=='str':
             id1 = 'f'
         columnType[col] = id1
     modMat = np.array([0]*rows).reshape(rows, 1)
@@ -266,7 +267,7 @@ def dummyMat(matrix, scale):
     pType = ['0']
     for col in range(columns):
         if columnType[col]=='q':
-            w = matrix.iloc[:,col]
+            w = matrix.iloc[:,col].to_numpy()
             w = (w - np.mean(w))
             if scale:
                 w = w / np.std(w, ddof=1)
@@ -275,9 +276,17 @@ def dummyMat(matrix, scale):
             pType.append('q')
         elif columnType[col]=='f':
             colName = matrix.columns[col]
-            w = get_dummies(matrix.iloc[:,col])
+            w = pd.get_dummies(matrix.iloc[:,col])
             levels = [colName + ':' + str(x) for x in w.columns]
             modMat = np.hstack((modMat, w))
             modNames.extend(levels)
             pType.extend(['f']*len(levels))
     return modMat[:,1:], modNames[1:], pType[1:]
+
+
+if __name__ == "__main__":
+    import ecopy as ep
+    dune = ep.load_data('dune')
+    dune_env = ep.load_data('dune_env')
+    RDA = ep.rda(dune, dune_env[['A1', 'Management']])
+    print(RDA.summary())

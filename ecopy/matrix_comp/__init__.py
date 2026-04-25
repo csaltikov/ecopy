@@ -9,3 +9,4 @@ from .cca import cca
 from .ccor import ccor
 from .bioenv import bioenv
 from .asca import ASCA
+from .asca_permute import *

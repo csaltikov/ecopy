@@ -54,7 +54,7 @@ def distance(x, method='euclidean', transform="1", breakNA=True):
         mod_gower: modified Gower distance
                 same as meanChar except M is the number of 
                 columns that are not double zero
-         simple: simple matching of binary data (SIMILARITY)
+        simple: simple matching of binary data (SIMILARITY)
                 (A + D)/(A + B + C + D)
         rogers: Rogers and Tanimoto coefficient for binary data (SIMILARITY)
                 (A + D) / (A + 2B + 2C + D)

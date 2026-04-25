@@ -1,22 +1,95 @@
 from pathlib import Path
 import numpy as np
 import pandas as pd
+from numpy import ndarray
 from sklearn.decomposition import PCA
-from patsy import dmatrix
+from formulaic import model_matrix
 import re
 import matplotlib.pyplot as plt
 from ecopy.matrix_comp.asca_permute import run_permutations, _decompose_standalone
+
 
 MARKERS = ['o', 's', '^', 'D', 'v', 'P', 'X', 'h', '*', 'p']
 
 
 class ASCA:
-    """ANOVA-Simultaneous Component Analysis"""
+    """ANOVA-Simultaneous Component Analysis (ASCA) for multivariate data.
+
+    ASCA decomposes a multivariate data matrix X into contributions from
+    experimental factors and their interactions, then applies PCA to each
+    effect matrix to extract the dominant patterns of variation attributable
+    to each factor.
+
+    The decomposition follows:
+
+        X = grand_mean + X_A + X_B + X_AB + X_residual
+
+    where X_A and X_B are the pure effect matrices for factors A and B,
+    X_AB is the interaction effect, and X_residual contains unexplained
+    variance. PCA is then applied to each effect matrix separately.
+
+    This is particularly useful for microbial community datasets with
+    structured experimental designs (e.g., multiple sampling depths,
+    time points, or geochemical gradients) where standard PCA would
+    confound multiple sources of variation.
+
+    Args:
+        X (np.ndarray): X is an n-dimensional multivariate data matrix, shape (n_samples, n_features).
+        factors (pd.DataFrame): Experimental design matrix, shape (n_samples, n_factors).
+            Each column is a categorical factor (e.g., 'depth', 'season').
+        decomp_type (int): Decomposition method for effect matrix estimation.
+            1 = Type I (sequential) SS — effects estimated in model entry order,
+                each term adjusted only for prior terms. Order-dependent.
+            3 = ASCA+ (Thiel et al. 2017) — Type III marginal SS via full-minus-reduced
+                least squares projection. Each effect matrix estimated by subtracting
+                the reduced model fit (all other terms) from the full model fit.
+                Order-independent; preferred for unbalanced designs. Residuals
+                projected back onto effect matrices prior to PCA. Defaults to 1.
+        nperm (int): Number of permutations for significance testing. Defaults to 999.
+        verbose (bool): If True, print progress during decomposition and permutation
+            testing. Defaults to False.
+
+    Attributes:
+        grand_mean (np.ndarray): Column-wise grand mean of X, shape (n_features,).
+        X_centered (np.ndarray): Mean-centered data matrix, shape (n_samples, n_features).
+        effect_matrices (dict[str, np.ndarray]): Effect matrices keyed by
+            factor name (e.g., 'depth', 'time', 'interaction').
+        SS (dict[str, float]): Sum of squares for each model term, keyed by factor name.
+        SS_total (float): Total sum of squares of X_centered.
+        SS_residual (float): Residual sum of squares after removing all factor effects.
+        E (np.ndarray): Residual matrix after factor effect removal, shape (n_samples, n_features).
+            In ASCA+, projected back onto effect matrices before PCA.
+        pcas (dict[str, PCA]): ...
+        scores (dict[str, np.ndarray]): PCA scores for each effect matrix.
+        loadings (dict[str, np.ndarray]):  PCA loadings for each effect matrix.
+        pvalues (dict[str, float]): Permutation-derived p-values for each model term
+        perm_ss (dict[str, np.ndarray]): ...
+
+    Raises:
+        ValueError: If decomp_type is not 1 or 3.
+
+    Notes:
+        When decomp_type=1, the order of columns in `factors` determines
+        the sequential partitioning of variance. For unbalanced designs or
+        when factor order is arbitrary, prefer decomp_type=3.
+
+    References:
+        Smilde, A.K., et al. (2005). ANOVA-simultaneous component analysis
+        (ASCA): a new tool for analyzing designed metabolomics data.
+        Bioinformatics, 21(13), 3043-3048.
+
+        Vis, D.J., et al. (2007). Statistical validation of megavariate effects
+        in ASCA. BMC Bioinformatics, 8, 322.
+    """
     def __init__(self, X, factors, decomp_type=1, nperm=999, verbose=False):
         self.X = X
         self.factors = factors
         self.verbose = verbose
         self.decomp_type = decomp_type
+
+        if self.decomp_type not in (1, 3):
+            raise ValueError(f"decomp_type must be 1 or 3, got {self.decomp_type}")
+
         self.effect_matrices, self.SS, self.E, \
             self.grand_mean, self.X_centered, \
             self.SS_total, self.SS_residual = \
@@ -54,7 +127,7 @@ class ASCA:
 
         factor_names = list(factors.columns)
         formula = "*".join([f"C({f}, Sum)" for f in factor_names])
-        design = dmatrix(formula, factors, return_type='dataframe')
+        design = model_matrix(formula, factors)
 
         effect_groups = {}
         for col in design.columns:
@@ -74,7 +147,7 @@ class ASCA:
                 effect_matrices[term] = D @ beta
                 X_remaining = X_remaining - effect_matrices[term]
 
-            E =  X_remaining #self.X_centered - sum(self.effect_matrices.values())
+            E =  X_remaining
 
             reconstruction =grand_mean + sum(effect_matrices.values()) + E
             assert np.allclose(reconstruction, X), "Decomposition failed"
@@ -238,7 +311,7 @@ class ASCA:
         save_path = kwargs.get('savefig', None)
         if save_path:
             plt.savefig(Path(save_path) / f"asca_{term_name}.pdf")
-        plt.show()
+        return fig, ax
 
     def _plot_loadings(self, loadings, term_name, n_load: int =15, var_names=None):
         fig, ax = plt.subplots(figsize=(6, 8))
@@ -259,10 +332,20 @@ class ASCA:
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
         plt.tight_layout()
-        plt.show()
+        return fig, ax
 
-    def plot(self, term_name, kind="scores", var_names=None, **kwargs):
-        # biplot of scores/loadings for specified factor
+    def plot(self, term_name: str, kind: str ="scores", var_names: list|ndarray=None, **kwargs):
+        '''biplot of scores/loadings for specified factor
+
+        Args:
+            term_name (str): name of experimental variable/term
+            kind (str): 'scores', 'loading', or 'biplot'
+            var_names (list|ndarray): list of variable names
+            **kwargs: additional arguments
+                figsize (tuple): figure size
+                n_load (int): number of arrows
+
+        '''
         term = self._find_term(term_name)
         scores = self.scores.get(term)
         var = self.pcas.get(term).explained_variance_ratio_
@@ -270,54 +353,25 @@ class ASCA:
 
         figsize = kwargs.get('figsize', (7, 5))
         n_load = kwargs.get('n_load', len(loadings) if loadings is not None else 15)
+        fig, ax = None, None
         if kind=="scores":
-            self._plot_scores(scores, term_name, var, kind, figsize=figsize)
+            fig, ax = self._plot_scores(scores, term_name, var, kind, figsize=figsize)
         elif kind=="loading":
-            self._plot_loadings(loadings, term_name, n_load, var_names)
+            fig, ax = self._plot_loadings(loadings, term_name, n_load, var_names)
         elif kind=="biplot":
-            self._plot_scores(scores,
+            fig, ax = self._plot_scores(scores,
                               term_name,
                               var,
                               kind='biplot',
                               loadings=loadings,
                               var_names=var_names,
                               **kwargs)
+        if not fig or not ax:
+            raise "There's a problem with the figure and axes"
+        return fig, ax
 
 
 if __name__ == '__main__':
-    np.random.seed(42)
-
-    factors = pd.DataFrame({
-        'depth': ['shallow'] * 6 + ['deep'] * 6,
-        'year': ['2014', '2014', '2014', '2015', '2015', '2015'] * 2,
-    })
-
-    var_names = np.array([
-        'Ectothiorhodospira',  # sp1 - depth signal (shallow)
-        'Roseibaca',  # sp2 - depth signal (shallow)
-        'Cyanobium',  # sp3 - year signal
-        'Thiomicrospira',  # sp4 - noise
-        'Halorubrum',  # sp5 - noise
-        'Natranaerobius',  # sp6 - noise
-        'Arhodomonas',  # sp7 - noise
-        'Thioalkalivibrio',  # sp8 - noise
-        'Planktosalinus',  # sp9 - noise
-        'Rhodobaca',  # sp10 - noise
-    ])
-
-    n = len(factors)
-    X = np.zeros((n, 10))  # 10 species — enough for interesting loadings
-    X[:, 0] = np.where(factors['depth'] == 'shallow', 8, 2)  # depth signal sp1
-    X[:, 1] = np.where(factors['depth'] == 'shallow', 6, 3)  # depth signal sp2
-    X[:, 2] = np.where(factors['year'] == '2014', 7, 3)  # year signal sp3
-    X += np.random.normal(0, 0.5, X.shape)
-
-    asca = ASCA(X, factors, decomp_type=1, nperm=99)
-    asca.summary()
-    ##
-    # asca.plot('depth', kind='scores')
-    # asca.plot('depth', kind='biplot')
-    asca.plot('depth', kind='loading', n_load=10, var_names=var_names)
-
+    help(ASCA)
 
 

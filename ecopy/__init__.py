@@ -1,6 +1,6 @@
 from importlib.metadata import version, PackageNotFoundError
 try:
-    __version__ = version("ecopy")
+    __version__ = version("ecopy2")
 except PackageNotFoundError:
     __version__ = "unknown"
 

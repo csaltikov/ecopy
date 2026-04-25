@@ -1,17 +1,14 @@
-EcoPy: Python for Ecological Data Analyses
+EcoPy2: Python for Ecological Data Analyses
 ******************************************
 
-.. image:: https://zenodo.org/badge/17555/Auerilas/ecopy.svg
-   :target: https://zenodo.org/badge/latestdoi/17555/Auerilas/ecopy
-
-**EcoPy** provides tools for ecological data analyses. In general, it focuses
+**EcoPy2** provides tools for ecological data analyses. In general, it focuses
 on multivariate data analysis, which can be useful in any field, but with
-particular attention to those methods widely used in ecology.
-`The homepage, with full documentation and examples, can be found here <http://ecopy.readthedocs.io>`_
+particular attention to those methods widely used in ecology. EcoPy2 is a
+modernized fork of `ecopy <https://github.com/Auerilas/ecopy>`_ by Nathan Lemoine.
 
-Install via ``pip install ecopy2`` or with uv::
+Install directly from GitHub (PyPI release coming)::
 
-    uv pip install ecopy2
+    uv pip install git+https://github.com/csaltikov/ecopy.git
 
 For development installation (editable mode)::
 
@@ -22,7 +19,16 @@ For development installation (editable mode)::
 
 What's New
 ==========
-
+0.1.5.0
+-------
+- ``cap()``: added ``reference`` argument for explicit control of
+  categorical dummy coding baseline levels
+- ``cap()``: converted docstrings to Google style with full type
+  annotations for improved IDE support
+- Fixed ``rdp.py``, ``rlq.py``: corrected dtype check for string
+  columns — ``dtype == 'str'`` replaces ``dtype == object`` which
+  raised errors on string inputs
+- Dropped Python 3.9 support — minimum Python version is now 3.10
 0.1.3.0
 -------
 - Added ``asca()`` — ANOVA-Simultaneous Component Analysis (ASCA),
@@ -42,14 +48,21 @@ What's New
 
   - Accepts any user-supplied dissimilarity matrix (e.g. Bray-Curtis)
   - Supports continuous, categorical, and mixed environmental variables
+  - ``condition`` argument for partial CAP / nuisance variable removal,
+    equivalent to ``Condition()`` in vegan's ``capscale()``
+  - ``reference`` argument for explicit control of categorical dummy coding
   - Permutation F-test (default 999 permutations) for model significance
-  - Biplot with centroids and spider legs for replicated designs
+  - Biplot with centroids and factor level text for replicated designs
+  - Non-Euclidean diagnostics (negative eigenvalue fraction)
+  - ``f_name`` kwarg in ``biplot()`` for saving figures at dpi=300
   - Validated against ``vegan::capscale()`` in R to 4 decimal places
 
 - Fixed ``simper()``: replaced deprecated ``DataFrame.append()`` with
   ``pd.concat()``, ``normed=`` with ``density=``, ``.ix[]`` with ``.loc[]``
 - Fixed ``anosim()``: replaced structured numpy array with pandas DataFrame,
-  precomputed masks for performance improvement
+  precomputed masks for nested ANOSIM performance
+- Fixed ``cap()`` biplot: corrected ``f_name`` kwarg retrieval for
+  ``Path`` objects
 - Fixed circular import in ``matrix_comp/cca.py``
 - Updated Python classifiers: 3.9 – 3.13
 - Dropped Python 2.7 and 3.4 support
@@ -70,7 +83,7 @@ What's New
 
 License
 =======
-**EcoPy** is distributed under the MIT license
+**EcoPy2** is distributed under the MIT license
 
 
 Version
@@ -133,14 +146,16 @@ Canonical Analysis of Principal Coordinates (CAP / dbRDA)::
     result = ep.cap(D, env, nperm=999, seed=42)
     result.summary()
     result.anova()
-    result.biplot(color_by=env['Depth'].values)
+    fig, ax = result.biplot(color_by=env['Depth'].values)
+
+    # Save the biplot to file
+    fig, ax = result.biplot(color_by=env['Depth'].values, f_name='cap_biplot.pdf')
 
 ANOVA-Simultaneous Component Analysis (ASCA)::
 
     import ecopy as ep
     import numpy as np
     import pandas as pd
-    from itertools import product
 
     # Balanced two-factor design: depth x year, 2 replicates
     factors = pd.DataFrame({
@@ -168,7 +183,7 @@ ANOVA-Simultaneous Component Analysis (ASCA)::
                           'Sp6', 'Sp7', 'Sp8', 'Sp9', 'Sp10'])
     result.plot('depth', kind='biplot', var_names=var_names)
 
-    # Loading bar chart
+    # Loading bar chart — top 10 species by PC1 loading
     result.plot('depth', kind='loading', var_names=var_names, n_load=10)
 
 Full online documentation is a work in progress.
@@ -181,8 +196,8 @@ The ``cap()`` and ``asca()`` implementations were developed with AI assistance
 below. Results were independently validated against R reference implementations
 by the maintainer.
 
-References:
-
+References
+----------
 - McArdle BH, Anderson MJ (2001) Fitting multivariate models to community
   data: a comment on distance-based redundancy analysis. *Ecology* 82:290–297.
 - Legendre P, Anderson MJ (1999) Distance-based redundancy analysis: testing
@@ -212,7 +227,6 @@ CAP
 ---
 
 1. Axis-by-axis permutation tests
-2. Partial CAP (conditioning variables)
 
 General
 -------
